@@ -621,9 +621,19 @@ try {
         const entry = state.activations.find(
           (a: { tabId: number }) => a.tabId === id,
         );
-        return profileId
+        const active = profileId
           ? entry?.profileId === profileId && entry.automatic === true
           : !entry;
+        const name = state.doc.profiles.find(
+          (p: { id: string }) => p.id === profileId,
+        )?.name;
+        return (
+          active &&
+          (await chrome.action.getBadgeText({ tabId: id })) ===
+            (profileId ? 'ON' : '') &&
+          (await chrome.action.getTitle({ tabId: id })) ===
+            (profileId ? `Reqvik — ${name}` : 'Reqvik — inactive')
+        );
       },
       { id, profileId },
     );
@@ -651,6 +661,15 @@ try {
   assert.ok(autoProfile);
   assert.ok(autoProfile.scope.pageDomains.includes('*.auto.localhost'));
   assert.equal(autoProfile.autoActivateDomain, 'pr-*.auto.localhost');
+  await waitAutomatic(tabId, profile.id);
+  // Recover a stale indicator even when navigation retains the same activation.
+  await options.evaluate(async (id) => {
+    await chrome.action.setBadgeText({ tabId: id, text: '' });
+    await chrome.action.setTitle({ tabId: id, title: 'Reqvik — inactive' });
+  }, tabId);
+  await tab.reload();
+  await waitAutomatic(tabId, profile.id);
+  await tab.goto(`${autoA}/page?same-origin=1`);
   await waitAutomatic(tabId, profile.id);
   assert.equal(
     (await get(tab, `${sourceOrigin}/echo?automatic-open-tab=1`)).host,

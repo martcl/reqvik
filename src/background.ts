@@ -42,28 +42,33 @@ function activationAt(entry: Activation, url: string): Activation {
 async function badges(active: Activation[], doc: ProfileDocument) {
   await chrome.action.setBadgeText({ text: '' });
   await Promise.all(
-    (await chrome.tabs.query({})).map(async (tab) => {
-      if (tab.id === undefined) return;
-      const entry = active.find((a) => a.tabId === tab.id);
-      const name = doc.profiles.find((p) => p.id === entry?.profileId)?.name;
-      try {
-        await chrome.action.setBadgeText({
-          tabId: tab.id,
-          text: name ? 'ON' : '',
-        });
-        await chrome.action.setBadgeBackgroundColor({
-          tabId: tab.id,
-          color: '#2d6b56',
-        });
-        await chrome.action.setTitle({
-          tabId: tab.id,
-          title: name ? `Reqvik — ${name}` : 'Reqvik — inactive',
-        });
-      } catch {
-        /* A tab can close while its badge is being updated. */
-      }
-    }),
+    (await chrome.tabs.query({})).map((tab) =>
+      tab.id === undefined
+        ? undefined
+        : badge(
+            tab.id,
+            active.find((a) => a.tabId === tab.id),
+            doc,
+          ),
+    ),
   );
+}
+async function badge(
+  tabId: number,
+  entry: Activation | undefined,
+  doc: ProfileDocument,
+) {
+  const name = doc.profiles.find((p) => p.id === entry?.profileId)?.name;
+  try {
+    await chrome.action.setBadgeText({ tabId, text: name ? 'ON' : '' });
+    await chrome.action.setBadgeBackgroundColor({ tabId, color: '#2d6b56' });
+    await chrome.action.setTitle({
+      tabId,
+      title: name ? `Reqvik — ${name}` : 'Reqvik — inactive',
+    });
+  } catch {
+    /* A tab can close while its badge is being updated. */
+  }
 }
 async function install(doc: ProfileDocument, active: Activation[]) {
   const rules = compileRules(doc, active);
@@ -316,6 +321,8 @@ function checkNavigation(tabId: number, url: string) {
         ...active.filter((a) => a.tabId !== tabId),
         ...(next ? [next] : []),
       ]);
+    // Navigation can leave the activation unchanged; still refresh its indicator.
+    else await badge(tabId, next, doc);
   });
 }
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
@@ -335,8 +342,9 @@ chrome.webNavigation.onErrorOccurred.addListener((details) => {
       /* The tab may have closed. */
     });
 });
-chrome.tabs.onUpdated.addListener((id, change) => {
+chrome.tabs.onUpdated.addListener((id, change, tab) => {
   if (change.url) checkNavigation(id, change.url);
+  else if (change.status === 'complete') checkNavigation(id, tab.url ?? '');
 });
 chrome.tabs.onRemoved.addListener((id) => {
   void enqueue(async () => {
