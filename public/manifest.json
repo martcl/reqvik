@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Reqvik",
+  "version": "0.1.0",
+  "description": "Modify request headers and destinations with explicit, tab-scoped profiles.",
+  "minimum_chrome_version": "145",
+  "permissions": ["storage", "declarativeNetRequestWithHostAccess", "activeTab", "webNavigation"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {"service_worker": "background.js", "type": "module"},
+  "action": {"default_popup": "popup.html", "default_title": "Reqvik — inactive"},
+  "options_ui": {"page": "options.html", "open_in_tab": true},
+  "incognito": "not_allowed"
+}
